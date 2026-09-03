@@ -1,12 +1,17 @@
 "use client"
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export default function SignupPage() {
+function SignupForm() {
+  const searchParams = useSearchParams()
+  const portal = searchParams.get("portal") || "user"
+  const isAdministration = portal === "administration"
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [fullName, setFullName] = useState("")
@@ -22,7 +27,10 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName }, emailRedirectTo: `${location.origin}/auth/callback` },
+      options: {
+        data: { full_name: fullName, portal },
+        emailRedirectTo: `${location.origin}/auth/callback?portal=${portal}`,
+      },
     })
     setLoading(false)
     if (error) return setError(error.message)
@@ -33,7 +41,7 @@ export default function SignupPage() {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${location.origin}/auth/callback` },
+      options: { redirectTo: `${location.origin}/auth/callback?portal=${portal}` },
     })
   }
 
@@ -44,15 +52,21 @@ export default function SignupPage() {
         <p className="mt-3 text-sm text-muted-foreground">
           We sent a confirmation link to <strong>{email}</strong>. Click it, then come back and log in.
         </p>
-        <Link href="/login"><Button className="mt-6 w-full">Back to log in</Button></Link>
+        <Link href={`/login?portal=${portal}`}><Button className="mt-6 w-full">Back to log in</Button></Link>
       </div>
     )
   }
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold">Create an account</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Report a stolen vehicle or join as Administration staff.</p>
+      <h1 className="font-heading text-2xl font-bold">
+        {isAdministration ? "Administration Registration" : "Report a Stolen Vehicle"}
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {isAdministration
+          ? "Create an account to join as Administration staff."
+          : "Create an account to submit and track your stolen vehicle report."}
+      </p>
 
       <Button variant="outline" className="mt-6 w-full" onClick={handleGoogleSignup} type="button">
         Continue with Google
@@ -80,8 +94,17 @@ export default function SignupPage() {
       </form>
 
       <p className="mt-6 text-center text-sm">
-        Already have an account? <Link href="/login" className="font-medium text-primary">Log in</Link>
+        Already have an account? <Link href={`/login?portal=${portal}`} className="font-medium text-primary">Log in</Link>
       </p>
     </div>
   )
 }
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
+  )
+}
+

@@ -28,15 +28,24 @@ function LoginForm() {
 
     try {
       if (data?.user) {
+        const portal = params.get("portal")
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", data.user.id)
           .maybeSingle()
-        if (profile?.role === "administration") {
+
+        let role = profile?.role
+        if (!role && portal) {
+          const assigned = portal === "administration" ? "administration" : "user"
+          await supabase.from("profiles").upsert({ id: data.user.id, email: data.user.email, role: assigned })
+          role = assigned
+        }
+
+        if (role === "administration" || portal === "administration") {
           window.location.href = "/administration/dashboard"
           return
-        } else if (profile?.role === "admin") {
+        } else if (role === "admin") {
           window.location.href = "/admin-portal/dashboard"
           return
         } else {
@@ -48,21 +57,32 @@ function LoginForm() {
       // Fallback
     }
 
-    window.location.href = "/administration/dashboard"
+    const fallbackPortal = params.get("portal")
+    window.location.href = fallbackPortal === "administration" ? "/administration/dashboard" : "/user/dashboard"
   }
 
   async function handleGoogleLogin() {
     const supabase = createClient()
+    const portal = params.get("portal") || "user"
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${location.origin}/auth/callback` },
+      options: { redirectTo: `${location.origin}/auth/callback?portal=${portal}` },
     })
   }
 
+  const portal = params.get("portal")
+  const isAdministration = portal === "administration"
+
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold">Welcome back</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Log in to track or review a case.</p>
+      <h1 className="font-heading text-2xl font-bold">
+        {isAdministration ? "Administration Login" : "Welcome back"}
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {isAdministration
+          ? "Log in to access the Administration portal."
+          : "Log in to track your stolen vehicle report."}
+      </p>
 
       {params.get("error") && (
         <p className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{params.get("error")}</p>
@@ -91,7 +111,7 @@ function LoginForm() {
 
       <div className="mt-6 flex justify-between text-sm">
         <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground">Forgot password?</Link>
-        <Link href="/signup" className="font-medium text-primary">Sign up</Link>
+        <Link href={`/signup?portal=${portal || "user"}`} className="font-medium text-primary">Sign up</Link>
       </div>
     </div>
   )

@@ -1,2 +1,13 @@
+sentry-platform/backend/uploads/
+sentry-platform/backend/outputs/
+*.mp4
+*.avi
+__pycache__/
+*.pyc
+venv/
+env/
+.ipynb_checkpoints/
+.vscode/
+*.log
 sentry-platform/backend/.env
 .env

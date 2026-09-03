@@ -5,6 +5,7 @@ const navItems = [
   { href: "/user/dashboard", label: "Dashboard", icon: "LayoutDashboard" as const },
   { href: "/user/report/new", label: "Report a Vehicle", icon: "FilePlus2" as const },
   { href: "/user/reports", label: "My Reports", icon: "ClipboardList" as const },
+  { href: "/user/messages", label: "Messages", icon: "Mail" as const },
   { href: "/user/assistant", label: "Assistant", icon: "Bot" as const },
 ]
 

@@ -286,6 +286,7 @@ def init_db():
             # Migration safety net: adds the report-workflow columns even
             # if this table already existed from before the role system.
             cur.execute("ALTER TABLE stolen_cars ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES profiles(id)")
+            cur.execute("ALTER TABLE stolen_cars ADD COLUMN IF NOT EXISTS contact_email TEXT")
             cur.execute("ALTER TABLE stolen_cars ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'")
             cur.execute("ALTER TABLE stolen_cars ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES profiles(id)")
             cur.execute("ALTER TABLE stolen_cars ADD COLUMN IF NOT EXISTS reviewed_at TEXT")
@@ -304,21 +305,42 @@ def init_db():
                     detected_at     TEXT
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id              SERIAL PRIMARY KEY,
+                    sender_id       UUID REFERENCES profiles(id),
+                    sender_email    TEXT,
+                    sender_role     TEXT NOT NULL,
+                    recipient_id    UUID REFERENCES profiles(id),
+                    report_id       INTEGER REFERENCES stolen_cars(id) ON DELETE CASCADE,
+                    message         TEXT NOT NULL,
+                    is_read         BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at      TIMESTAMPTZ DEFAULT now()
+                )
+            """)
         conn.commit()
 
 
-def register_car(plate, name, model, color, user_id):
+def register_car(plate, name, model, color, user_id, contact_email: Optional[str] = None):
     plate = plate.upper().strip()
+    c_email = (contact_email or "").strip().lower() or None
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO stolen_cars (plate_number, owner_name, car_model, car_color, date_added, user_id, status)
-                   VALUES (%s, %s, %s, %s, %s, %s, 'pending')
-                   ON CONFLICT (plate_number) DO NOTHING
+                """INSERT INTO stolen_cars (plate_number, owner_name, car_model, car_color, date_added, user_id, contact_email, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
+                   ON CONFLICT (plate_number) DO UPDATE SET
+                       contact_email = COALESCE(EXCLUDED.contact_email, stolen_cars.contact_email),
+                       user_id = COALESCE(EXCLUDED.user_id, stolen_cars.user_id)
                    RETURNING id""",
-                (plate, name, model, color, datetime.now().isoformat(), user_id),
+                (plate, name, model, color, datetime.now().isoformat(), user_id, c_email),
             )
             row = cur.fetchone()
+            if row and c_email and user_id:
+                cur.execute(
+                    "UPDATE profiles SET email = %s WHERE id = %s AND (email IS NULL OR email = '')",
+                    (c_email, user_id)
+                )
         conn.commit()
     return row[0] if row else None
 
@@ -328,6 +350,7 @@ def _row_to_report(r):
         "id": r[0], "plate": r[1].upper().strip(), "owner": r[2], "model": r[3], "color": r[4],
         "date_added": r[5], "user_id": str(r[6]) if r[6] else None, "status": r[7],
         "reviewed_by": str(r[8]) if r[8] else None, "reviewed_at": r[9], "review_notes": r[10],
+        "user_email": r[11] if len(r) > 11 and r[11] else None,
     }
 
 
@@ -337,10 +360,19 @@ REPORT_COLUMNS = "id, plate_number, owner_name, car_model, car_color, date_added
 def get_all_cars(status_filter: Optional[str] = None):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            query = """
+                SELECT s.id, s.plate_number, s.owner_name, s.car_model, s.car_color, s.date_added,
+                       s.user_id, s.status, s.reviewed_by, s.reviewed_at, s.review_notes,
+                       COALESCE(s.contact_email, p.email) AS user_email
+                FROM stolen_cars s
+                LEFT JOIN profiles p ON s.user_id = p.id
+            """
             if status_filter:
-                cur.execute(f"SELECT {REPORT_COLUMNS} FROM stolen_cars WHERE status = %s ORDER BY id DESC", (status_filter,))
+                query += " WHERE s.status = %s ORDER BY s.id DESC"
+                cur.execute(query, (status_filter,))
             else:
-                cur.execute(f"SELECT {REPORT_COLUMNS} FROM stolen_cars ORDER BY id DESC")
+                query += " ORDER BY s.id DESC"
+                cur.execute(query)
             rows = cur.fetchall()
     return [_row_to_report(r) for r in rows]
 
@@ -348,7 +380,15 @@ def get_all_cars(status_filter: Optional[str] = None):
 def get_cars_for_user(user_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT {REPORT_COLUMNS} FROM stolen_cars WHERE user_id = %s ORDER BY id DESC", (user_id,))
+            query = """
+                SELECT s.id, s.plate_number, s.owner_name, s.car_model, s.car_color, s.date_added,
+                       s.user_id, s.status, s.reviewed_by, s.reviewed_at, s.review_notes,
+                       COALESCE(s.contact_email, p.email) AS user_email
+                FROM stolen_cars s
+                LEFT JOIN profiles p ON s.user_id = p.id
+                WHERE s.user_id = %s ORDER BY s.id DESC
+            """
+            cur.execute(query, (user_id,))
             rows = cur.fetchall()
     return [_row_to_report(r) for r in rows]
 
@@ -390,6 +430,83 @@ def set_profile_role(user_id, role):
             updated = cur.rowcount > 0
         conn.commit()
     return updated
+
+
+def create_message(sender_id, sender_email, sender_role, recipient_id, report_id, message_text):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO messages (sender_id, sender_email, sender_role, recipient_id, report_id, message)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (sender_id, sender_email, sender_role, recipient_id, report_id, message_text))
+            row = cur.fetchone()
+        conn.commit()
+    return row[0] if row else None
+
+
+def get_messages_for_user(user_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT m.id, m.sender_id, m.sender_email, m.sender_role, m.recipient_id,
+                       m.report_id, m.message, m.is_read, m.created_at, s.plate_number, s.car_model
+                FROM messages m
+                LEFT JOIN stolen_cars s ON m.report_id = s.id
+                WHERE m.recipient_id = %s
+                ORDER BY m.id DESC
+            """, (user_id,))
+            rows = cur.fetchall()
+    return [{
+        "id": r[0],
+        "sender_id": str(r[1]) if r[1] else None,
+        "sender_email": r[2],
+        "sender_role": r[3],
+        "recipient_id": str(r[4]) if r[4] else None,
+        "report_id": r[5],
+        "message": r[6],
+        "is_read": r[7],
+        "created_at": r[8].isoformat() if hasattr(r[8], "isoformat") else str(r[8]),
+        "plate_number": r[9],
+        "car_model": r[10],
+    } for r in rows]
+
+
+def get_messages_for_report(report_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT m.id, m.sender_id, m.sender_email, m.sender_role, m.recipient_id,
+                       m.report_id, m.message, m.is_read, m.created_at, s.plate_number, s.car_model
+                FROM messages m
+                LEFT JOIN stolen_cars s ON m.report_id = s.id
+                WHERE m.report_id = %s
+                ORDER BY m.id ASC
+            """, (report_id,))
+            rows = cur.fetchall()
+    return [{
+        "id": r[0],
+        "sender_id": str(r[1]) if r[1] else None,
+        "sender_email": r[2],
+        "sender_role": r[3],
+        "recipient_id": str(r[4]) if r[4] else None,
+        "report_id": r[5],
+        "message": r[6],
+        "is_read": r[7],
+        "created_at": r[8].isoformat() if hasattr(r[8], "isoformat") else str(r[8]),
+        "plate_number": r[9],
+        "car_model": r[10],
+    } for r in rows]
+
+
+def mark_message_read(message_id, user_id):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE messages SET is_read = TRUE WHERE id = %s AND recipient_id = %s", (message_id, user_id))
+            ok = cur.rowcount > 0
+        conn.commit()
+    return ok
+
 
 
 OCR_NORM_MAP = str.maketrans({
@@ -449,6 +566,7 @@ def find_car_in_db(plate_text):
 
 
 def save_detection(db_car, frame_idx, video_time, image_filename, source_video):
+    now_iso = datetime.now().isoformat()
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -457,7 +575,16 @@ def save_detection(db_car, frame_idx, video_time, image_filename, source_video):
                     image_filename, source_video, detected_at)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (db_car["plate"], db_car["owner"], db_car["model"], db_car["color"],
-                 frame_idx, video_time, image_filename, source_video, datetime.now().isoformat()),
+                 frame_idx, video_time, image_filename, source_video, now_iso),
+            )
+            # Automatically mark the stolen car report as 'found'
+            cur.execute(
+                """UPDATE stolen_cars
+                   SET status = 'found',
+                       reviewed_at = %s,
+                       review_notes = %s
+                   WHERE id = %s""",
+                (now_iso, f"Automatically detected by Stolen Car Detection AI in video '{source_video}' at {video_time}s (Frame {frame_idx})", db_car["id"]),
             )
         conn.commit()
 
@@ -648,7 +775,7 @@ def read_plate(crop, low_light=False):
     if crop is None or crop.size == 0 or ocr is None:
         return ""
     h, w = crop.shape[:2]
-    if h < 14 or w < 20:
+    if h < 12 or w < 16:
         return ""
 
     scale = max(80.0 / h, 240.0 / w, 2.5)
@@ -658,24 +785,24 @@ def read_plate(crop, low_light=False):
     # 1. Otsu thresholding (best for clean daylight and white plates)
     _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     results = ocr.readtext(otsu, allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-", detail=1)
-    texts = [(t, c) for _, t, c in results if c > 0.15 and len(t.strip()) >= 2]
+    texts = [(t, c) for _, t, c in results if c > 0.10 and len(t.strip()) >= 2]
 
-    # 2. CLAHE local contrast enhancement
-    if not texts:
-        denoised = cv2.bilateralFilter(gray, 9, 75, 75)
-        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(6, 6)).apply(denoised)
-        results = ocr.readtext(clahe, allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-", detail=1)
-        texts = [(t, c) for _, t, c in results if c > 0.15 and len(t.strip()) >= 2]
-
-    # 3. Inverted thresholding (for dark plates or yellow rear plates)
+    # 2. Inverted thresholding (crucial for yellow rear plates)
     if not texts:
         results = ocr.readtext(255 - otsu, allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-", detail=1)
-        texts = [(t, c) for _, t, c in results if c > 0.15 and len(t.strip()) >= 2]
+        texts = [(t, c) for _, t, c in results if c > 0.10 and len(t.strip()) >= 2]
+
+    # 3. CLAHE local contrast enhancement
+    if not texts:
+        denoised = cv2.bilateralFilter(gray, 7, 50, 50)
+        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(6, 6)).apply(denoised)
+        results = ocr.readtext(clahe, allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-", detail=1)
+        texts = [(t, c) for _, t, c in results if c > 0.10 and len(t.strip()) >= 2]
 
     # 4. Fallback on raw resized
     if not texts:
         results = ocr.readtext(resized, allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-", detail=1)
-        texts = [(t, c) for _, t, c in results if c > 0.12 and len(t.strip()) >= 2]
+        texts = [(t, c) for _, t, c in results if c > 0.08 and len(t.strip()) >= 2]
 
     if not texts:
         return ""
@@ -805,6 +932,7 @@ class ReportCreate(BaseModel):
     owner: str
     model: str
     color: str
+    email: str
 
 
 class StatusUpdate(BaseModel):
@@ -819,7 +947,13 @@ VALID_STATUSES = {"pending", "under_review", "found", "not_found"}
 def api_create_report(payload: ReportCreate, user: dict = Depends(require_role("user"))):
     """A User submits their own stolen car. Starts life as 'pending' --
     Administration will update the status after reviewing footage."""
-    report_id = register_car(payload.plate, payload.owner, payload.model, payload.color, user["id"])
+    clean_email = payload.email.strip().lower() if payload.email else ""
+    if not clean_email or "@" not in clean_email:
+        raise HTTPException(status_code=400, detail="A valid contact email is required.")
+
+    report_id = register_car(
+        payload.plate, payload.owner, payload.model, payload.color, user["id"], clean_email
+    )
     if report_id is None:
         raise HTTPException(status_code=409, detail=f"Plate {payload.plate.upper()} is already reported")
     return {"success": True, "report_id": report_id, "status": "pending"}
@@ -853,11 +987,89 @@ def api_update_report_status(report_id: int, payload: StatusUpdate, user: dict =
 
 
 @app.delete("/api/reports/{report_id}")
-def api_delete_report(report_id: int, user: dict = Depends(require_role("admin"))):
+def api_delete_report(report_id: int, user: dict = Depends(require_role("user", "administration", "admin"))):
+    # Regular users can only delete reports they submitted
+    if user.get("role") == "user":
+        my_reports = get_cars_for_user(user["id"])
+        if not any(r["id"] == report_id for r in my_reports):
+            raise HTTPException(status_code=403, detail="You can only delete your own submitted reports.")
+
     ok = delete_car(report_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Report not found")
     return {"success": True}
+
+
+# ------------------------------------------------------------------
+# API: messaging system between Administration and Reporters
+# ------------------------------------------------------------------
+
+class MessageSend(BaseModel):
+    report_id: int
+    message: str
+
+
+@app.post("/api/messages")
+def api_send_message(payload: MessageSend, user: dict = Depends(require_role("administration", "admin"))):
+    """Administration or Admin sends a direct message/update to the reporter of a stolen car."""
+    text = payload.message.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_id, contact_email, plate_number FROM stolen_cars WHERE id = %s", (payload.report_id,))
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    recipient_id = row[0]
+    contact_email = row[1]
+
+    # If recipient_id is missing on old records, auto-link via contact_email or profile
+    if not recipient_id and contact_email:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM profiles WHERE LOWER(email) = LOWER(%s) LIMIT 1", (contact_email.strip(),))
+                p_row = cur.fetchone()
+                if p_row:
+                    recipient_id = p_row[0]
+                    cur.execute("UPDATE stolen_cars SET user_id = %s WHERE id = %s", (recipient_id, payload.report_id))
+            conn.commit()
+
+    if not recipient_id:
+        raise HTTPException(status_code=400, detail="Cannot send message: this vehicle report does not have an associated user account.")
+
+    msg_id = create_message(
+        sender_id=user["id"],
+        sender_email=user.get("email"),
+        sender_role=user.get("role", "administration"),
+        recipient_id=recipient_id,
+        report_id=payload.report_id,
+        message_text=text
+    )
+    return {"success": True, "message_id": msg_id}
+
+
+@app.get("/api/messages/me")
+def api_my_messages(user: dict = Depends(require_role("user", "administration", "admin"))):
+    """User views all messages sent to them by Administration regarding their reported vehicles."""
+    msgs = get_messages_for_user(user["id"])
+    return {"messages": msgs}
+
+
+@app.get("/api/messages/report/{report_id}")
+def api_report_messages(report_id: int, user: dict = Depends(require_role("user", "administration", "admin"))):
+    """Returns thread of messages for a specific report."""
+    msgs = get_messages_for_report(report_id)
+    return {"messages": msgs}
+
+
+@app.patch("/api/messages/{message_id}/read")
+def api_mark_read(message_id: int, user: dict = Depends(require_role("user", "administration", "admin"))):
+    """Marks a message as read."""
+    ok = mark_message_read(message_id, user["id"])
+    return {"success": ok}
 
 
 # API: admin -- manage who has which role
@@ -1057,28 +1269,43 @@ def process_video_stream(in_path, source_filename, job_id):
                 traceback.print_exc(file=sys.stdout)
                 sys.stdout.flush()
 
-    def plate_worker():
-        """Dedicated OCR worker loop: reads plates asynchronously without slowing down video playback."""
-        print(f"[plate_worker] STARTED for job {job_id}", flush=True)
+    def plate_worker(worker_id=1):
+        """Dedicated OCR worker loop: reads plates asynchronously with multiple parallel workers."""
+        print(f"[plate_worker-{worker_id}] STARTED for job {job_id}", flush=True)
         attempts = 0
         successes = 0
         while not stop_event.is_set():
+            target_id = None
             try:
                 with tracks_lock:
                     snap_idx = latest["idx"]
-                    candidates = [t for t in tracks if t.get("plate_box_rel") is not None and (not t["plate_text"] or (snap_idx - t["checked_at"]) >= RECHECK_EVERY)]
-                    candidates.sort(key=lambda t: (bool(t["plate_text"]), t["checked_at"]))
-                    target_id = candidates[0]["id"] if candidates else None
+                    candidates = [
+                        t for t in tracks
+                        if t.get("plate_box_rel") is not None
+                        and not t.get("in_progress", False)
+                        and (not t["plate_text"] or (snap_idx - t["checked_at"]) >= 6)
+                    ]
+                    if candidates:
+                        def rank(t):
+                            cx1, cy1, cx2, cy2 = t.get("box", (0, 0, 10, 10))
+                            rx1, ry1, rx2, ry2 = t.get("plate_box_rel", (0, 0, 0, 0))
+                            area = max(1, (rx2 - rx1) * (cx2 - cx1)) * max(1, (ry2 - ry1) * (cy2 - cy1))
+                            return (1 if bool(t.get("plate_text")) else 0, -area, t.get("checked_at", 0))
+
+                        candidates.sort(key=rank)
+                        target = candidates[0]
+                        target_id = target["id"]
+                        target["in_progress"] = True
 
                 if not target_id:
-                    time.sleep(0.02)
+                    time.sleep(0.015)
                     continue
 
                 with latest_lock:
                     frame = None if latest["frame"] is None else latest["frame"].copy()
                     idx = latest["idx"]
                 if frame is None:
-                    time.sleep(0.02)
+                    time.sleep(0.015)
                     continue
 
                 with tracks_lock:
@@ -1122,7 +1349,7 @@ def process_video_stream(in_path, source_filename, job_id):
                 attempts += 1
                 if new_text:
                     successes += 1
-                    print(f"[plate_worker] attempt #{attempts}: track {target_id} -> '{new_text}'", flush=True)
+                    print(f"[plate_worker-{worker_id}] attempt #{attempts}: track {target_id} -> '{new_text}'", flush=True)
 
                 with tracks_lock:
                     for t in tracks:
@@ -1130,7 +1357,7 @@ def process_video_stream(in_path, source_filename, job_id):
                             if new_text:
                                 t["plate_text"] = new_text
                             t["checked_at"] = idx
-                            
+
                             # Check stolen car match
                             check_text = new_text or t["plate_text"]
                             db_car = find_car_in_db(check_text) if check_text else None
@@ -1166,15 +1393,26 @@ def process_video_stream(in_path, source_filename, job_id):
                             break
             except Exception:
                 import traceback, sys
-                print(f"[plate_worker] ERROR (loop continues):", flush=True)
+                print(f"[plate_worker-{worker_id}] ERROR (loop continues):", flush=True)
                 traceback.print_exc(file=sys.stdout)
                 sys.stdout.flush()
                 time.sleep(0.05)
+            finally:
+                if target_id:
+                    with tracks_lock:
+                        for t in tracks:
+                            if t["id"] == target_id:
+                                t["in_progress"] = False
+                                break
 
     box_thread = threading.Thread(target=box_worker, daemon=True)
-    plate_thread = threading.Thread(target=plate_worker, daemon=True)
+    plate_threads = [
+        threading.Thread(target=plate_worker, args=(i + 1,), daemon=True)
+        for i in range(3)
+    ]
     box_thread.start()
-    plate_thread.start()
+    for pt in plate_threads:
+        pt.start()
 
     frame_idx = 0
     stream_scale = None
@@ -1255,7 +1493,8 @@ def process_video_stream(in_path, source_filename, job_id):
 
     stop_event.set()
     box_thread.join(timeout=2)
-    plate_thread.join(timeout=2)
+    for pt in plate_threads:
+        pt.join(timeout=2)
     while True:
         try:
             yield results_q.get_nowait()
@@ -1409,10 +1648,57 @@ def api_chat(req: ChatRequest, user: dict = Depends(require_role())):
             detail="GEMINI_API_KEY is not configured on the server. Add it to backend/.env and restart.",
         )
 
+    role = user.get("role", "user")
+    user_id = user.get("sub")
+
+    if role == "user":
+        user_cars = get_cars_for_user(user_id) if user_id else []
+        if user_cars:
+            cars_summary = "\n".join(
+                [f"- Plate: {c['plate']}, Vehicle: {c['model']} ({c['color']}), Status: {c['status'].upper()}, Reported: {c['date_added']}, Admin Notes: {c.get('review_notes') or 'None'}" for c in user_cars]
+            )
+        else:
+            cars_summary = "Aap ki taraf se abhi tak koi stolen car report darj nahi hui hai."
+
+        system_instruction = f"""You are the dedicated Citizen Support Assistant for the Stolen Car Detection System.
+Your job is STRICTLY LIMITED to helping vehicle owners with their theft reports and system inquiries.
+
+RULES:
+1. ONLY answer questions directly related to:
+   - How to report a stolen car (plate number, car model, color, date stolen, police FIR).
+   - Checking the status of their reported cars (Pending, Under Review, Found, Not Found).
+   - What to do when a car is marked as Found (contact administration, verification).
+   - How to view or delete their reports in the user portal.
+2. The user's active vehicle reports in our database are:
+{cars_summary}
+When the user asks about their report or status (e.g. "meri report ka status batao", "kya meri gaari mil gayi?"), use the exact details above to answer clearly.
+3. If the user asks ANY question not related to stolen cars, vehicle reports, or this system (such as general knowledge, news, coding, math, recipes, chitchat), POLITELY DECLINE:
+   "Main sirf Stolen Car Detection System aur aap ki chori shuda gaari ki reports se mutalliq madad kar sakta hoon."
+4. Always respond in the language used by the user (Urdu, Roman Urdu, or English). Keep answers helpful, concise, and courteous."""
+
+    else:
+        # Administration / Admin role
+        all_cars = get_all_cars()
+        stats_pending = sum(1 for c in all_cars if c["status"] == "pending")
+        stats_found = sum(1 for c in all_cars if c["status"] == "found")
+        stats_total = len(all_cars)
+
+        system_instruction = f"""You are the ANPR & Administration Operations Assistant for the Stolen Car Detection System.
+Your role is STRICTLY to assist administration officers with surveillance, detection, and case management tasks.
+
+RULES:
+1. ONLY assist with administrative tasks:
+   - Live Detect: Video stream processing, uploading CCTV/dashcam MP4 footage, real-time bounding boxes (Green=vehicle detected, Amber=plate recognized, Red=stolen match alert).
+   - Night/low-light enhancement: Adaptive CLAHE, gamma correction, and headlight glare suppression.
+   - Reports Queue: Reviewing evidence snapshots, changing case status between Pending, Under Review, Found, Not Found, and updating notes.
+   - Current System Metrics: Total Reports: {stats_total} | Pending: {stats_pending} | Found: {stats_found}.
+2. If asked off-topic questions (e.g. personal chitchat, coding, trivia, unrelated news), POLITELY REFUSE and remind the operator to focus on vehicle detection and case management.
+3. Support Urdu, Roman Urdu, and English professionally and concisely."""
+
     contents = []
     for turn in (req.history or [])[-20:]:
-        role = "user" if turn.role == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": turn.text}]})
+        turn_role = "user" if turn.role == "user" else "model"
+        contents.append({"role": turn_role, "parts": [{"text": turn.text}]})
     contents.append({"role": "user", "parts": [{"text": req.message}]})
 
     models_to_try = [
@@ -1426,6 +1712,7 @@ def api_chat(req: ChatRequest, user: dict = Depends(require_role())):
             response = gemini_client.models.generate_content(
                 model=model_name,
                 contents=contents,
+                config={"system_instruction": system_instruction},
             )
             return {"reply": response.text}
         except Exception as e:

@@ -32,7 +32,7 @@ export default function HeroCarousel() {
           className="absolute inset-0"
         >
           <Image src={SLIDES[index].src} alt={SLIDES[index].alt} fill priority className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/15 to-transparent" />
         </motion.div>
       </AnimatePresence>
 

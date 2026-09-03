@@ -3,7 +3,7 @@ import "./globals.css";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "Sentry | Stolen Vehicle Detection Platform",
+  title: "Stolen Car Detection System",
   description: "AI-powered stolen vehicle detection with live video monitoring, Gemini assistant, and role-based reporting.",
 };
 

@@ -3,7 +3,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   ShieldCheck, LogOut, Menu, LayoutDashboard, FilePlus2, ClipboardList,
-  Bot, Video, Bell, BarChart3, Users, Settings2, ScrollText,
+  Bot, Video, Bell, BarChart3, Users, Settings2, ScrollText, Mail,
 } from "lucide-react"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 
 const ICON_MAP = {
   LayoutDashboard, FilePlus2, ClipboardList, Bot, Video, Bell,
-  BarChart3, Users, Settings2, ScrollText,
+  BarChart3, Users, Settings2, ScrollText, Mail,
 }
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICON_MAP }
@@ -44,11 +44,11 @@ export default function AppShell({
 
   const SidebarInner = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-5 py-6 font-heading text-lg font-bold">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-brand text-white shadow-glow">
+      <div className="flex items-center gap-2 px-5 py-6 font-heading font-bold">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-brand text-white shadow-glow">
           <ShieldCheck className="h-4 w-4" />
         </div>
-        Sentry
+        <span className="text-sm font-bold leading-tight">Stolen Car Detection System</span>
       </div>
       <Badge variant={roleBadgeVariant} className="mx-5 mb-4 w-fit">{roleLabel}</Badge>
       <nav className="flex-1 space-y-1 px-3">
@@ -95,7 +95,7 @@ export default function AppShell({
 
       <div className="flex-1">
         <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden">
-          <span className="font-heading font-bold">Sentry</span>
+          <span className="font-heading font-bold text-sm">Stolen Car Detection System</span>
           <button onClick={() => setMobileOpen(true)}><Menu className="h-5 w-5" /></button>
         </header>
         <main className="p-4 lg:p-8">{children}</main>

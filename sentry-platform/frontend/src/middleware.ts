@@ -117,6 +117,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  const isPendingApprovalRoute = request.nextUrl.pathname.startsWith('/pending-approval')
+
+  // If an administration user is already approved (or has no staff row, which defaults to approved),
+  // redirect them away from the pending page directly to their dashboard.
+  if (user && role === 'administration' && staffStatus === 'approved' && isPendingApprovalRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/administration/dashboard'
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
 

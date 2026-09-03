@@ -1,74 +1,125 @@
 "use client"
-import { Suspense, useRef } from "react"
-import { Canvas, useFrame } from "@react-three/fiber"
-import { Environment, ContactShadows, RoundedBox } from "@react-three/drei"
-import * as THREE from "three"
-
-function Wheel({ position }: { position: [number, number, number] }) {
-  return (
-    <mesh position={position} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.42, 0.42, 0.32, 24]} />
-      <meshStandardMaterial color="#18181b" roughness={0.6} metalness={0.2} />
-    </mesh>
-  )
-}
-
-function Car() {
-  const group = useRef<THREE.Group>(null)
-  useFrame((_, delta) => {
-    if (group.current) group.current.rotation.y += delta * 0.5
-  })
-
-  return (
-    <group ref={group} position={[0, -0.1, 0]}>
-      {/* Lower body */}
-      <RoundedBox args={[2.6, 0.55, 1.15]} radius={0.12} smoothness={4} position={[0, 0.35, 0]} castShadow>
-        <meshStandardMaterial color="#7c3aed" roughness={0.25} metalness={0.7} />
-      </RoundedBox>
-      {/* Cabin */}
-      <RoundedBox args={[1.3, 0.5, 1.05]} radius={0.15} smoothness={4} position={[-0.05, 0.82, 0]} castShadow>
-        <meshStandardMaterial color="#a78bfa" roughness={0.1} metalness={0.3} transparent opacity={0.85} />
-      </RoundedBox>
-      {/* Headlights */}
-      <mesh position={[1.28, 0.4, 0.38]}>
-        <sphereGeometry args={[0.09, 16, 16]} />
-        <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={1.6} />
-      </mesh>
-      <mesh position={[1.28, 0.4, -0.38]}>
-        <sphereGeometry args={[0.09, 16, 16]} />
-        <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={1.6} />
-      </mesh>
-      {/* Taillights */}
-      <mesh position={[-1.28, 0.4, 0.38]}>
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={1.4} />
-      </mesh>
-      <mesh position={[-1.28, 0.4, -0.38]}>
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial color="#f43f5e" emissive="#f43f5e" emissiveIntensity={1.4} />
-      </mesh>
-      {/* Wheels */}
-      <Wheel position={[0.85, 0.05, 0.58]} />
-      <Wheel position={[0.85, 0.05, -0.58]} />
-      <Wheel position={[-0.85, 0.05, 0.58]} />
-      <Wheel position={[-0.85, 0.05, -0.58]} />
-    </group>
-  )
-}
+import { useRef, useState } from "react"
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion"
+import Image from "next/image"
+import { Scan, Sparkles } from "lucide-react"
 
 export default function Car3D() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Interactive 3D mouse tilt
+  const mouseX = useMotionValue(0)
+  const mouseY = useMotionValue(0)
+
+  const springConfig = { damping: 25, stiffness: 120 }
+  const tiltX = useSpring(useTransform(mouseY, [-0.5, 0.5], [16, -16]), springConfig)
+  const tiltY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-22, 22]), springConfig)
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width - 0.5
+    const y = (e.clientY - rect.top) / rect.height - 0.5
+    mouseX.set(x)
+    mouseY.set(y)
+  }
+
+  function handleMouseLeave() {
+    setIsHovered(false)
+    mouseX.set(0)
+    mouseY.set(0)
+  }
+
   return (
-    <div className="h-full w-full">
-      <Canvas shadows camera={{ position: [3.4, 1.6, 3.4], fov: 40 }}>
-        <Suspense fallback={null}>
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[4, 5, 3]} intensity={1.4} castShadow shadow-mapSize={[1024, 1024]} />
-          <pointLight position={[-4, 2, -3]} intensity={0.5} color="#22d3ee" />
-          <Car />
-          <ContactShadows position={[0, -0.35, 0]} opacity={0.5} scale={8} blur={2.2} far={2} />
-          <Environment preset="city" />
-        </Suspense>
-      </Canvas>
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={handleMouseLeave}
+      className="relative flex h-full w-full select-none items-center justify-center [perspective:1200px]"
+    >
+      {/* Background Hologram & Ambient Glow */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="h-64 w-64 rounded-full bg-gradient-to-tr from-violet-500/25 via-cyan-400/20 to-rose-400/15 blur-3xl" />
+        <div className="absolute h-72 w-72 rounded-full border border-violet-400/20 [animation:spin_25s_linear_infinite]" />
+        <div className="absolute h-96 w-96 rounded-full border border-dashed border-cyan-400/25 [animation:spin_35s_linear_infinite_reverse]" />
+      </div>
+
+      {/* Main 3D Rotating & Floating Wrapper */}
+      <motion.div
+        style={{
+          rotateX: isHovered ? tiltX : 0,
+          rotateY: isHovered ? tiltY : 0,
+          transformStyle: "preserve-3d",
+        }}
+        animate={
+          !isHovered
+            ? {
+                rotateY: [-16, 16, -16],
+                rotateX: [6, -4, 6],
+                y: [-12, 12, -12],
+              }
+            : { y: -8 }
+        }
+        transition={
+          !isHovered
+            ? {
+                duration: 7,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }
+            : { duration: 0.3 }
+        }
+        className="relative flex flex-col items-center justify-center cursor-grab active:cursor-grabbing"
+      >
+        {/* Floating AI Detection Badge Top-Right */}
+        <motion.div
+          animate={{ y: [-4, 4, -4] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-3 -right-2 z-20 flex items-center gap-1.5 rounded-full border border-cyan-300/60 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-cyan-900 shadow-lg backdrop-blur-md dark:bg-slate-900/90 dark:text-cyan-200"
+          style={{ transform: "translateZ(50px)" }}
+        >
+          <Scan className="h-3.5 w-3.5 text-cyan-500 animate-pulse" />
+          <span>ANPR Live Tracked</span>
+        </motion.div>
+
+        {/* Floating Spec Badge Bottom-Left */}
+        <motion.div
+          animate={{ y: [4, -4, 4] }}
+          transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -bottom-2 -left-2 z-20 flex items-center gap-1.5 rounded-full border border-violet-300/60 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-violet-900 shadow-lg backdrop-blur-md dark:bg-slate-900/90 dark:text-violet-200"
+          style={{ transform: "translateZ(45px)" }}
+        >
+          <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+          <span>Real-Time Plate Detection</span>
+        </motion.div>
+
+        {/* Real Lamborghini Image (Medium Size) */}
+        <div
+          className="relative w-[320px] sm:w-[380px] md:w-[430px] max-w-full drop-shadow-[0_20px_30px_rgba(0,0,0,0.4)] transition-transform duration-300 hover:scale-105"
+          style={{ transform: "translateZ(30px)" }}
+        >
+          <Image
+            src="/lamborghini.png"
+            alt="Real Lamborghini Supercar"
+            width={1000}
+            height={394}
+            priority
+            className="h-auto w-full object-contain filter contrast-105 drop-shadow-md"
+          />
+        </div>
+
+        {/* Realistic Ground Shadow & Ambient Underglow */}
+        <div
+          className="mt-[-15px] h-6 w-[85%] rounded-[100%] bg-black/45 blur-md"
+          style={{ transform: "translateZ(0px) rotateX(75deg)" }}
+        />
+        <div
+          className="mt-[-10px] h-3 w-3/5 rounded-[100%] bg-violet-600/35 blur-sm"
+          style={{ transform: "translateZ(0px) rotateX(75deg)" }}
+        />
+      </motion.div>
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import StatusBadge from "@/components/shared/StatusBadge"
 
-type Report = { id: number; plate: string; owner: string; model: string; color: string; status: string; date_added: string }
+type Report = { id: number; plate: string; owner: string; model: string; color: string; status: string; date_added: string; user_email?: string | null }
 
 export default function ReportsQueuePage() {
   const { token } = useSession()
@@ -42,13 +42,27 @@ export default function ReportsQueuePage() {
         <CardContent>
           {loading ? <p className="text-sm text-muted-foreground">Loading...</p> : (
             <Table>
-              <TableHeader><TableRow><TableHead>Plate</TableHead><TableHead>Vehicle</TableHead><TableHead>Reporter</TableHead><TableHead>Submitted</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Plate</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Reporter</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {reports.map((r) => (
                   <TableRow key={r.id} className="cursor-pointer">
-                    <TableCell className="font-medium"><Link href={`/administration/reports/${r.id}`}>{r.plate}</Link></TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/administration/reports/${r.id}`} className="text-primary hover:underline font-mono">
+                        {r.plate}
+                      </Link>
+                    </TableCell>
                     <TableCell>{r.model} · {r.color}</TableCell>
                     <TableCell className="text-muted-foreground">{r.owner}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-mono">{r.user_email || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{new Date(r.date_added).toLocaleDateString()}</TableCell>
                     <TableCell><StatusBadge status={r.status} /></TableCell>
                   </TableRow>

@@ -10,7 +10,7 @@ const STATS = [
 
 export default function StatsStrip() {
   return (
-    <div className="border-y border-white/50 bg-white/50 backdrop-blur">
+    <div className="border-y border-slate-800/80 bg-slate-900/40 backdrop-blur-xl">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-6 py-8 lg:grid-cols-4">
         {STATS.map((s, i) => (
           <motion.div
@@ -21,8 +21,8 @@ export default function StatsStrip() {
             transition={{ duration: 0.4, delay: i * 0.08 }}
             className="text-center"
           >
-            <p className="gradient-text font-heading text-3xl font-bold">{s.value}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
+            <p className="bg-gradient-to-r from-violet-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent font-heading text-3xl font-extrabold">{s.value}</p>
+            <p className="mt-1 text-sm text-slate-400">{s.label}</p>
           </motion.div>
         ))}
       </div>
