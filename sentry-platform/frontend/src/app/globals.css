@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    /* Sentry palette v2: colorful & light -- Violet + Cyan + Coral */
+    --background: hsl(250, 45%, 97%);
+    --foreground: hsl(252, 35%, 14%);
+    --card: hsl(0, 0%, 100%);
+    --card-foreground: hsl(252, 35%, 14%);
+    --popover: hsl(0, 0%, 100%);
+    --popover-foreground: hsl(252, 35%, 14%);
+
+    --primary: hsl(258, 90%, 61%);
+    --primary-foreground: hsl(0, 0%, 100%);
+
+    --crimson: hsl(346, 90%, 60%);
+    --crimson-foreground: hsl(0, 0%, 100%);
+    --amber: hsl(38, 95%, 55%);
+    --amber-foreground: hsl(252, 35%, 14%);
+    --cyan: hsl(189, 90%, 48%);
+    --cyan-foreground: hsl(0, 0%, 100%);
+
+    --secondary: hsl(252, 45%, 95%);
+    --secondary-foreground: hsl(252, 35%, 20%);
+    --muted: hsl(252, 30%, 95%);
+    --muted-foreground: hsl(252, 12%, 46%);
+    --accent: hsl(258, 80%, 95%);
+    --accent-foreground: hsl(258, 60%, 30%);
+    --destructive: hsl(346, 84%, 55%);
+    --destructive-foreground: hsl(0, 0%, 100%);
+    --border: hsl(252, 25%, 89%);
+    --input: hsl(252, 25%, 89%);
+    --ring: hsl(258, 90%, 61%);
+    --radius: 1.1rem;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(at 15% 0%, hsla(258, 90%, 70%, 0.16) 0px, transparent 55%),
+      radial-gradient(at 85% 0%, hsla(189, 90%, 60%, 0.16) 0px, transparent 55%),
+      radial-gradient(at 50% 100%, hsla(346, 90%, 70%, 0.12) 0px, transparent 55%),
+      radial-gradient(at 90% 90%, hsla(38, 95%, 65%, 0.12) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  * {
+    @apply border-border;
+  }
+}
+
+@layer components {
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .live-dot {
+    @apply h-2 w-2 rounded-full bg-crimson animate-pulse-dot;
+  }
+  .glass-card {
+    @apply rounded-2xl border border-white/60 bg-white/70 shadow-premium backdrop-blur-xl;
+  }
+  .gradient-text {
+    @apply bg-gradient-brand bg-clip-text text-transparent;
+  }
+  .blob {
+    @apply pointer-events-none absolute rounded-full blur-3xl opacity-40;
+  }
+}
