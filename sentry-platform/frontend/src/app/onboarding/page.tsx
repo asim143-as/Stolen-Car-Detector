@@ -36,9 +36,9 @@ function OnboardingContent() {
       if (profileError) throw profileError
 
       if (role === "administration") {
-        router.push("/administration/dashboard")
+        window.location.href = "/administration/dashboard"
       } else {
-        router.push("/user/dashboard")
+        window.location.href = "/user/dashboard"
       }
     } catch (err: any) {
       setLoading(false)
