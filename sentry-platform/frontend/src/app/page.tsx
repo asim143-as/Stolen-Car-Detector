@@ -1,8 +1,26 @@
 import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 
-// Mirrors MediSight: "/" always sends visitors to the public landing
-// page. Middleware then takes over role-based routing for logged-in
-// users hitting a protected area.
-export default function RootPage() {
+export default async function RootPage() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const role = profile?.role
+    if (role === "administration") {
+      redirect("/administration/dashboard")
+    } else if (role === "admin") {
+      redirect("/admin-portal/dashboard")
+    } else {
+      redirect("/user/dashboard")
+    }
+  }
+
   redirect("/welcome")
 }

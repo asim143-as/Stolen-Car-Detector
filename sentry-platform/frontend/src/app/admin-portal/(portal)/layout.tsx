@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import AppShell from "@/components/layout/AppShell"
+import AppShell, { type NavItem } from "@/components/layout/AppShell"
 
-const navItems = [
-  { href: "/admin-portal/dashboard", label: "Dashboard", icon: "LayoutDashboard" as const },
-  { href: "/admin-portal/users", label: "Users & Roles", icon: "Users" as const },
-  { href: "/admin-portal/reports", label: "All Reports", icon: "ClipboardList" as const },
-  { href: "/admin-portal/models", label: "Detection Settings", icon: "Settings2" as const },
-  { href: "/admin-portal/audit", label: "Audit Log", icon: "ScrollText" as const },
+const navItems: NavItem[] = [
+  { href: "/admin-portal/dashboard", label: "Dashboard", icon: "LayoutDashboard", group: "COMMAND" },
+  { href: "/admin-portal/reports", label: "All Reports", icon: "ClipboardList", group: "COMMAND" },
+  { href: "/admin-portal/users", label: "Users & Roles", icon: "Users", group: "MANAGEMENT" },
+  { href: "/admin-portal/audit", label: "Audit Log", icon: "ScrollText", group: "MANAGEMENT" },
+  { href: "/admin-portal/models", label: "Detection Settings", icon: "Settings2", group: "SYSTEM" },
+  { href: "/admin-portal/settings", label: "Settings", icon: "Settings2", group: "SYSTEM" },
 ]
 
 export default async function AdminPortalLayout({ children }: { children: React.ReactNode }) {

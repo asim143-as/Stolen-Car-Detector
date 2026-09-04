@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server"
-import AppShell from "@/components/layout/AppShell"
+import AppShell, { type NavItem } from "@/components/layout/AppShell"
 
-const navItems = [
-  { href: "/user/dashboard", label: "Dashboard", icon: "LayoutDashboard" as const },
-  { href: "/user/report/new", label: "Report a Vehicle", icon: "FilePlus2" as const },
-  { href: "/user/reports", label: "My Reports", icon: "ClipboardList" as const },
-  { href: "/user/messages", label: "Messages", icon: "Mail" as const },
-  { href: "/user/assistant", label: "Assistant", icon: "Bot" as const },
+const navItems: NavItem[] = [
+  { href: "/user/dashboard", label: "Dashboard", icon: "LayoutDashboard", group: "VEHICLE CASES" },
+  { href: "/user/report/new", label: "Report a Vehicle", icon: "FilePlus2", group: "VEHICLE CASES" },
+  { href: "/user/reports", label: "My Reports", icon: "ClipboardList", group: "VEHICLE CASES" },
+  { href: "/user/messages", label: "Messages & Alerts", icon: "Mail", group: "VEHICLE CASES" },
+  { href: "/user/assistant", label: "AI Assistant", icon: "Bot", group: "VEHICLE CASES" },
+  { href: "/user/settings", label: "Settings", icon: "Settings2", group: "SYSTEM" },
 ]
 
 export default async function UserLayout({ children }: { children: React.ReactNode }) {

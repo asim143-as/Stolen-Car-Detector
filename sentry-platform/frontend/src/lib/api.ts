@@ -8,6 +8,7 @@ export async function apiFetch(path: string, token: string | undefined, init: Re
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
+      'bypass-tunnel-reminder': 'true',
       ...(init.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers || {}),

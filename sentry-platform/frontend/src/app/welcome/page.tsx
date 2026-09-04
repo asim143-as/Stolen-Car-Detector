@@ -35,12 +35,17 @@ export default function WelcomePage() {
               Stolen Car Detection System
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <Link href="/admin-portal/login">
+              <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-white backdrop-blur text-xs">
+                Admin Portal
+              </Button>
+            </Link>
             <Link href="/login">
-              <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-800/60">Log in</Button>
+              <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800/60 text-xs sm:text-sm">Log in</Button>
             </Link>
             <Link href="/signup">
-              <Button className="bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-medium shadow-[0_0_20px_rgba(124,58,237,0.4)] border-0">
+              <Button size="sm" className="bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-medium shadow-[0_0_20px_rgba(124,58,237,0.4)] border-0 text-xs sm:text-sm">
                 Get started
               </Button>
             </Link>
@@ -67,23 +72,15 @@ export default function WelcomePage() {
           <p className="mt-6 max-w-xl text-base sm:text-lg text-slate-400 leading-relaxed">
             Stolen Car Detection System pairs rapid community reporting with real-time deep learning plate recognition running frame-by-frame on surveillance footage, day or night.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {/* User → login/signup portal=user */}
+          <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link href="/login?portal=user">
-              <Button size="lg" className="gap-2 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:brightness-110 text-white font-semibold shadow-[0_0_25px_rgba(124,58,237,0.4)] border-0">
+              <Button size="lg" className="gap-2 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:brightness-110 text-white font-semibold shadow-[0_0_25px_rgba(124,58,237,0.4)] border-0 px-8 py-6 text-base">
                 <ShieldCheck className="h-5 w-5" /> Report a stolen vehicle
               </Button>
             </Link>
-            {/* Administration → login with portal=administration */}
-            <Link href="/login?portal=administration">
-              <Button size="lg" variant="outline" className="border-cyan-700/60 bg-cyan-950/40 text-cyan-200 hover:bg-cyan-900/60 hover:text-white backdrop-blur">
-                Administration
-              </Button>
-            </Link>
-            {/* Admin (super admin) — separate portal */}
-            <Link href="/admin-portal/login">
-              <Button size="lg" variant="outline" className="border-slate-700 bg-slate-900/60 text-slate-400 hover:bg-slate-800 hover:text-white backdrop-blur text-sm">
-                Admin
+            <Link href="#action-section">
+              <Button size="lg" variant="outline" className="border-slate-800 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-white backdrop-blur py-6 text-base">
+                See it in action
               </Button>
             </Link>
           </div>

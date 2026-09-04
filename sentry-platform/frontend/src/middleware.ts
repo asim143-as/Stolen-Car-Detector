@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const homeForRole = (r: string | null) => {
-    if (r === 'user') return '/user/dashboard'
+    if (r === 'admin') return '/admin-portal/dashboard'
     if (r === 'administration' && staffStatus !== 'approved') return '/pending-approval'
     if (r === 'administration') return '/administration/dashboard'
     return '/user/dashboard'
@@ -85,7 +85,7 @@ export async function middleware(request: NextRequest) {
   const isUserArea = request.nextUrl.pathname.startsWith('/user')
   const isAdministrationArea = request.nextUrl.pathname.startsWith('/administration')
 
-  if (user && isAuthRoute) {
+  if (user && (isAuthRoute || request.nextUrl.pathname === '/')) {
     const url = request.nextUrl.clone()
     url.pathname = homeForRole(role)
     return NextResponse.redirect(url)
