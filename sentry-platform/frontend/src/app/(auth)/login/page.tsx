@@ -41,6 +41,14 @@ function LoginForm() {
           .maybeSingle()
 
         let role = profile?.role
+
+        // Block Admin accounts from public login page
+        if (role === "admin") {
+          await supabase.auth.signOut()
+          setLoading(false)
+          return setError("Admin accounts cannot sign in from here. Please use the dedicated Admin Portal.")
+        }
+
         if (!role) {
           await supabase.from("profiles").upsert({ id: data.user.id, email: data.user.email, role: activePortal })
           role = activePortal
@@ -48,9 +56,6 @@ function LoginForm() {
 
         if (role === "administration" || activePortal === "administration") {
           window.location.href = "/administration/dashboard"
-          return
-        } else if (role === "admin") {
-          window.location.href = "/admin-portal/dashboard"
           return
         } else {
           window.location.href = "/user/dashboard"

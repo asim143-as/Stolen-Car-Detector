@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get("next")
 
   if (code) {
-    let response = NextResponse.next()
+    // Array to collect all cookies set by Supabase Auth (handles multi-chunk tokens)
+    const cookiesToSet: { name: string; value: string; options: CookieOptions }[] = []
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,14 +21,10 @@ export async function GET(request: NextRequest) {
             return request.cookies.get(name)?.value
           },
           set(name: string, value: string, options: CookieOptions) {
-            request.cookies.set({ name, value, ...options })
-            response = NextResponse.next({ request: { headers: request.headers } })
-            response.cookies.set({ name, value, ...options })
+            cookiesToSet.push({ name, value, options })
           },
           remove(name: string, options: CookieOptions) {
-            request.cookies.set({ name, value: "", ...options })
-            response = NextResponse.next({ request: { headers: request.headers } })
-            response.cookies.set({ name, value: "", ...options })
+            cookiesToSet.push({ name, value: "", options })
           },
         },
       }
@@ -35,8 +32,13 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-    if (!error && data?.user) {
-      // Check if user already has a role — or assign based on portal
+    if (error) {
+      console.error("OAuth exchange error:", error)
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
+    }
+
+    if (data?.user) {
+      // Check user profile role in database
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -44,35 +46,53 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       let role = profile?.role
+
+      // If user is Admin, they must not enter through citizen Google login
+      if (role === "admin") {
+        await supabase.auth.signOut()
+        return NextResponse.redirect(
+          `${origin}/login?error=${encodeURIComponent(
+            "Admin accounts cannot sign in from here. Please use the dedicated Admin Portal."
+          )}`
+        )
+      }
+
+      // If no profile role exists yet, create it with the requested portal role
       if (!role) {
         const assignedRole = portal === "administration" ? "administration" : "user"
         await supabase
           .from("profiles")
           .upsert({ id: data.user.id, email: data.user.email, role: assignedRole })
         role = assignedRole
+      } else if (portal === "administration" && role !== "administration") {
+        // If user logged in under Administration tab, allow updating role to administration
+        await supabase
+          .from("profiles")
+          .update({ role: "administration" })
+          .eq("id", data.user.id)
+        role = "administration"
       }
 
+      // Determine redirect destination
       let redirectUrl = `${origin}/user/dashboard`
       if (next) {
         redirectUrl = `${origin}${next}`
       } else if (role === "administration") {
         redirectUrl = `${origin}/administration/dashboard`
-      } else if (role === "admin") {
-        redirectUrl = `${origin}/admin-portal/dashboard`
       } else {
         redirectUrl = `${origin}/user/dashboard`
       }
 
       const redirectResponse = NextResponse.redirect(redirectUrl)
-      // Copy all session cookies to the redirect response so browser has active session immediately!
-      response.cookies.getAll().forEach((c) => {
-        redirectResponse.cookies.set(c.name, c.value, c)
+      // Apply every cookie Supabase set to the redirect response so the session is active immediately!
+      cookiesToSet.forEach(({ name, value, options }) => {
+        redirectResponse.cookies.set(name, value, options)
       })
 
       return redirectResponse
     }
   }
 
-  // Fallback if no user or error
+  // Fallback if no user or no code
   return NextResponse.redirect(`${origin}/login`)
 }
