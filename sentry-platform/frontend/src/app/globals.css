@@ -42,6 +42,37 @@
     --radius: 1.1rem;
   }
 
+  .dark {
+    --background: hsl(222, 47%, 9%);
+    --foreground: hsl(210, 40%, 98%);
+    --card: hsl(222, 47%, 12%);
+    --card-foreground: hsl(210, 40%, 98%);
+    --popover: hsl(222, 47%, 12%);
+    --popover-foreground: hsl(210, 40%, 98%);
+
+    --primary: hsl(217, 91%, 60%);
+    --primary-foreground: hsl(0, 0%, 100%);
+
+    --crimson: hsl(346, 85%, 55%);
+    --crimson-foreground: hsl(0, 0%, 100%);
+    --amber: hsl(38, 95%, 55%);
+    --amber-foreground: hsl(222, 47%, 11%);
+    --cyan: hsl(189, 90%, 48%);
+    --cyan-foreground: hsl(0, 0%, 100%);
+
+    --secondary: hsl(217, 33%, 16%);
+    --secondary-foreground: hsl(210, 40%, 98%);
+    --muted: hsl(217, 33%, 16%);
+    --muted-foreground: hsl(215, 20%, 65%);
+    --accent: hsl(217, 33%, 18%);
+    --accent-foreground: hsl(210, 40%, 98%);
+    --destructive: hsl(346, 84%, 55%);
+    --destructive-foreground: hsl(0, 0%, 100%);
+    --border: hsl(217, 33%, 18%);
+    --input: hsl(217, 33%, 18%);
+    --ring: hsl(217, 91%, 60%);
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     background-image:
@@ -52,8 +83,31 @@
     background-attachment: fixed;
   }
 
+  .dark body {
+    background-image:
+      radial-gradient(at 15% 0%, hsla(222, 90%, 18%, 0.5) 0px, transparent 55%),
+      radial-gradient(at 85% 0%, hsla(217, 90%, 22%, 0.35) 0px, transparent 55%),
+      radial-gradient(at 50% 100%, hsla(222, 90%, 14%, 0.5) 0px, transparent 55%);
+  }
+
   * {
     @apply border-border;
+  }
+
+  /* Custom Sleek Slide Bar (Scrollbar) for Mobile & Desktop Tables */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.6);
   }
 }
 

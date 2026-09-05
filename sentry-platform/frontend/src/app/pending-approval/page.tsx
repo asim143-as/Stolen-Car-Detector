@@ -26,9 +26,9 @@ export default async function PendingApprovalPage() {
       .eq("user_id", user.id)
       .maybeSingle()
 
-    // No row in administration_staff = admin approved them directly via profiles table
-    // OR status is explicitly 'approved' → redirect to dashboard
-    if (!staff || staff.status === "approved") {
+    if (!staff) {
+      await supabase.from("administration_staff").insert({ user_id: user.id, status: "pending" })
+    } else if (staff.status === "approved") {
       redirect("/administration/dashboard")
     }
   } else if (profile?.role !== "administration") {

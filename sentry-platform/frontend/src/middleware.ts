@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
           .select('status')
           .eq('user_id', user.id)
           .maybeSingle()
-        staffStatus = staff?.status ?? 'approved'
+        staffStatus = staff?.status ?? 'pending'
       }
     } catch (e) {
       console.warn('Middleware role check fallback:', e)

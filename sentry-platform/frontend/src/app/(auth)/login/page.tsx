@@ -55,6 +55,21 @@ function LoginForm() {
         }
 
         if (role === "administration" || activePortal === "administration") {
+          const { data: staff } = await supabase
+            .from("administration_staff")
+            .select("status")
+            .eq("user_id", data.user.id)
+            .maybeSingle()
+
+          if (!staff) {
+            await supabase.from("administration_staff").insert({ user_id: data.user.id, status: "pending" })
+            window.location.href = "/pending-approval"
+            return
+          } else if (staff.status !== "approved") {
+            window.location.href = "/pending-approval"
+            return
+          }
+
           window.location.href = "/administration/dashboard"
           return
         } else {

@@ -78,7 +78,20 @@ export async function GET(request: NextRequest) {
       if (next) {
         redirectUrl = `${origin}${next}`
       } else if (role === "administration") {
-        redirectUrl = `${origin}/administration/dashboard`
+        const { data: staff } = await supabase
+          .from("administration_staff")
+          .select("status")
+          .eq("user_id", data.user.id)
+          .maybeSingle()
+
+        if (!staff) {
+          await supabase.from("administration_staff").insert({ user_id: data.user.id, status: "pending" })
+          redirectUrl = `${origin}/pending-approval`
+        } else if (staff.status !== "approved") {
+          redirectUrl = `${origin}/pending-approval`
+        } else {
+          redirectUrl = `${origin}/administration/dashboard`
+        }
       } else {
         redirectUrl = `${origin}/user/dashboard`
       }
